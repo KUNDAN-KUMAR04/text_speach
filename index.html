@@ -49,6 +49,8 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .ck{display:flex;gap:8px;align-items:center;margin:8px 0;font-size:.9rem}
 #reader s.sk{text-decoration:line-through;opacity:.45}
 #dict{min-height:80px;font-size:.9rem}
+.trrow{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
+.trrow select{width:auto;flex:1;min-width:120px}
 @media (max-width:860px){.wrap{grid-template-columns:1fr}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
 </style>
@@ -68,6 +70,15 @@ button:disabled{opacity:.45;cursor:not-allowed}
       <button id="clear">Clear</button>
       <button id="cursor" title="Start reading from the text cursor">Read from cursor</button>
     </div>
+    <div class="trrow">
+      <b style="font-size:.9rem">Translate</b>
+      <select id="src" aria-label="Translate from"></select><span aria-hidden="true">→</span>
+      <select id="tgt" aria-label="Translate to"></select>
+      <button id="tr">Translate</button><button id="trr">Translate &amp; read</button>
+      <button id="undo" style="display:none">Undo</button>
+      <button id="gt" title="Opens Google Translate in a new tab">Google Translate ↗</button>
+    </div>
+    <div class="hint" id="trstat" style="margin:0 0 10px"></div>
     <textarea id="text" placeholder="Type, paste or drop a text file here."></textarea>
     <div class="hint" id="livehint" style="display:none">Live view: click a sentence to jump to it. You can keep editing the text above; changes are picked up automatically.</div>
     <div id="reader" aria-live="off"></div>
@@ -191,7 +202,7 @@ function stats(){
 text.addEventListener("input",function(){stats();lsSet("tts-draft",text.value);});
 rate.addEventListener("input",stats);stats();
 $("clear").onclick=function(){stopAll();text.value="";lsSet("tts-draft","");stats();text.focus();};
-$("sample").onclick=function(){stopAll();text.value="Welcome to Speak. This is a free text to speech tool that runs entirely in your browser. Choose a voice on the right, adjust the speed, and press play. You can also click any sentence while it is reading to jump straight to it.";lsSet("tts-draft",text.value);stats();};
+$("sample").onclick=function(){stopAll();var ls=langSel.value.indexOf("p:")===0?SAMPLES[langSel.value.slice(2)]:null;text.value=ls||"Welcome to Speak. This is a free text to speech tool that runs entirely in your browser. Choose a voice on the right, adjust the speed, and press play. You can also click any sentence while it is reading to jump straight to it.";lsSet("tts-draft",text.value);stats();};
 $("paste").onclick=function(){
   if(!navigator.clipboard||!navigator.clipboard.readText){msg.textContent="Clipboard access isn't available here. Use Ctrl+V in the text box.";return;}
   navigator.clipboard.readText().then(function(t){text.value=t;lsSet("tts-draft",t);stats();msg.textContent="";if(state!=="idle")syncLive();}).catch(function(){msg.textContent="Clipboard blocked. Use Ctrl+V in the text box.";});
@@ -260,6 +271,77 @@ function fromCursor(){
   msg.textContent="";list=split(t);rebuildCum();warned={};
   speakFrom(Math.max(0,split(t.slice(0,text.selectionStart||0)).length-1));
 }
+
+/* ---------- translation ---------- */
+var SAMPLES={hi:"नमस्ते! यह एक मुफ़्त टेक्स्ट टू स्पीच टूल है। अपनी भाषा चुनिए और सुनिए।",mr:"नमस्कार! हे एक मोफत टेक्स्ट टू स्पीच साधन आहे. तुमची भाषा निवडा आणि ऐका.",bn:"নমস্কার! এটি একটি বিনামূল্যের টেক্সট টু স্পিচ টুল। আপনার ভাষা বেছে নিন এবং শুনুন।",ta:"வணக்கம்! இது இலவச உரையிலிருந்து பேச்சு கருவி. உங்கள் மொழியைத் தேர்ந்தெடுத்துக் கேளுங்கள்.",te:"నమస్కారం! ఇది ఉచిత టెక్స్ట్ టు స్పీచ్ సాధనం. మీ భాషను ఎంచుకుని వినండి.",gu:"નમસ્તે! આ એક મફત ટેક્સ્ટ ટુ સ્પીચ સાધન છે. તમારી ભાષા પસંદ કરો અને સાંભળો.",kn:"ನಮಸ್ಕಾರ! ಇದು ಉಚಿತ ಟೆಕ್ಸ್ಟ್ ಟು ಸ್ಪೀಚ್ ಸಾಧನ. ನಿಮ್ಮ ಭಾಷೆಯನ್ನು ಆರಿಸಿ ಮತ್ತು ಕೇಳಿ.",ml:"നമസ്കാരം! ഇത് സൗജന്യ ടെക്സ്റ്റ് ടു സ്പീച്ച് ടൂൾ ആണ്. നിങ്ങളുടെ ഭാഷ തിരഞ്ഞെടുത്ത് കേൾക്കുക.",pa:"ਸਤ ਸ੍ਰੀ ਅਕਾਲ! ਇਹ ਇੱਕ ਮੁਫ਼ਤ ਟੈਕਸਟ ਟੂ ਸਪੀਚ ਟੂਲ ਹੈ। ਆਪਣੀ ਭਾਸ਼ਾ ਚੁਣੋ ਅਤੇ ਸੁਣੋ।",ur:"السلام علیکم! یہ ایک مفت ٹیکسٹ ٹو اسپیچ ٹول ہے۔ اپنی زبان منتخب کریں اور سنیں۔"};
+var TRL=[["en","English"],["hi","Hindi (हिन्दी)"],["bn","Bengali (বাংলা)"],["ta","Tamil (தமிழ்)"],["te","Telugu (తెలుగు)"],["mr","Marathi (मराठी)"],["gu","Gujarati (ગુજરાતી)"],["kn","Kannada (ಕನ್ನಡ)"],["ml","Malayalam (മലയാളം)"],["pa","Punjabi (ਪੰਜਾਬੀ)"],["ur","Urdu (اردو)"],["or","Odia (ଓଡ଼ିଆ)"],["as","Assamese (অসমীয়া)"],["ne","Nepali (नेपाली)"],["es","Spanish"],["fr","French"],["de","German"],["pt","Portuguese"],["it","Italian"],["ru","Russian"],["ar","Arabic"],["tr","Turkish"],["id","Indonesian"],["th","Thai"],["vi","Vietnamese"],["ja","Japanese"],["ko","Korean"],["zh","Chinese"]];
+var srcSel=$("src"),tgtSel=$("tgt"),prevText=null,trBusy=false;
+srcSel.innerHTML='<option value="auto">Auto-detect</option>'+TRL.map(function(l){return'<option value="'+l[0]+'">'+l[1]+'</option>';}).join("");
+tgtSel.innerHTML=TRL.map(function(l){return'<option value="'+l[0]+'">'+l[1]+'</option>';}).join("");
+tgtSel.value=lsGet("tts-tgt")||"hi";
+tgtSel.onchange=function(){lsSet("tts-tgt",tgtSel.value);};
+var hasTr=("Translator" in self);
+function trstat(m){$("trstat").textContent=m;}
+if(!hasTr){$("tr").disabled=$("trr").disabled=true;trstat("Built-in translation needs Chrome or Edge on desktop (recent version). In other browsers use the Google Translate button, then paste the result back.");}
+else trstat("Translation runs on your device and is free. The first use of a language pair downloads a small language pack.");
+async function detectLang(t){
+  try{if("LanguageDetector" in self){var d=await LanguageDetector.create(),r=await d.detect(t.slice(0,1500));if(r&&r[0]&&r[0].confidence>0.4)return r[0].detectedLanguage.split("-")[0];}}catch(e){}
+  for(var i=0;i<SCR.length;i++)if(SCR[i][0].test(t))return SCR[i][1][0];
+  return "en";
+}
+async function avail(a,b){try{return await Translator.availability({sourceLanguage:a,targetLanguage:b});}catch(e){return "unavailable";}}
+async function buildChain(a,b){
+  if(a===b)return[];
+  if((await avail(a,b))!=="unavailable")return[[a,b]];
+  if(a!=="en"&&b!=="en"&&(await avail(a,"en"))!=="unavailable"&&(await avail("en",b))!=="unavailable")return[[a,"en"],["en",b]];
+  return null;
+}
+function mk(pr){return Translator.create({sourceLanguage:pr[0],targetLanguage:pr[1],monitor:function(m){m.addEventListener("downloadprogress",function(e){trstat("Downloading "+pr[0]+" → "+pr[1]+" language pack… "+Math.round(e.loaded*100)+"%");});}});}
+function chunkText(t){
+  var out=[],buf="";
+  t.split(/(\n+)/).forEach(function(p){
+    (p.length>1500?(p.match(/[\s\S]{1,1000}(?:\s|$)|[\s\S]{1,1000}/g)||[p]):[p]).forEach(function(x){
+      if(buf&&buf.length+x.length>1200){out.push(buf);buf="";}buf+=x;});
+  });
+  if(buf)out.push(buf);return out;
+}
+function setVoiceFor(l){
+  var q=function(v){return(/natural|online/i.test(v.name)||!v.localService)?1:0;};
+  var m=voices.filter(function(x){return lc(x).split("-")[0]===l}).sort(function(a,b){return q(b)-q(a);});
+  langSel.value=langSel.querySelector('option[value="p:'+l+'"]')?"p:"+l:"all";lsSet("tts-lang",langSel.value);fillVoices();
+  if(m.length){voiceSel.value=m[0].name;lsSet("tts-voice",m[0].name);}
+  else if(l!=="en")msg.textContent="No "+l+" voice found on this device. See the install tips under Voice settings.";
+}
+async function doTranslate(thenRead){
+  if(trBusy||!hasTr)return;
+  var t=text.value;if(!t.trim()){trstat("Add some text first.");return;}
+  var tgt=tgtSel.value,src=srcSel.value;trBusy=true;msg.textContent="";stopAll();$("tr").disabled=$("trr").disabled=true;
+  try{
+    trstat("Detecting language…");if(src==="auto")src=await detectLang(t);
+    var chain=await buildChain(src,tgt);
+    if(chain===null){trstat("This browser can't translate "+src+" → "+tgt+" yet. Try another pair or the Google Translate button.");return;}
+    if(!chain.length){trstat("The text already looks like "+tgt+".");return;}
+    var ts=[];for(var i=0;i<chain.length;i++)ts.push(await mk(chain[i]));
+    var parts=chunkText(t),out=[];
+    for(var k=0;k<parts.length;k++){
+      trstat("Translating "+(k+1)+" of "+parts.length+"…");
+      var r=parts[k];if(r.trim())for(var j=0;j<ts.length;j++)r=await ts[j].translate(r);
+      out.push(r);
+    }
+    prevText=t;text.value=out.join("");lsSet("tts-draft",text.value);stats();$("undo").style.display="inline-block";
+    trstat("Translated "+src+" → "+tgt+" on your device. Use Undo to get the original back.");
+    setVoiceFor(tgt);if(thenRead)start();
+  }catch(e){trstat("Translation failed: "+(e&&e.message?e.message:e)+". Try the Google Translate button.");}
+  finally{trBusy=false;$("tr").disabled=$("trr").disabled=false;}
+}
+$("tr").onclick=function(){doTranslate(false);};
+$("trr").onclick=function(){doTranslate(true);};
+$("undo").onclick=function(){if(prevText!==null){stopAll();text.value=prevText;lsSet("tts-draft",prevText);stats();prevText=null;$("undo").style.display="none";trstat("Original text restored.");}};
+$("gt").onclick=function(){
+  var t=text.value.trim();if(!t){trstat("Add some text first.");return;}
+  window.open("https://translate.google.com/?sl="+srcSel.value+"&tl="+tgtSel.value+"&text="+encodeURIComponent(t.slice(0,3000))+"&op=translate","_blank","noopener");
+  trstat("Opened Google Translate with the first 3,000 characters. Paste the result back here to read it.");
+};
 
 /* ---------- playback ---------- */
 var SCR=[[/[\u0900-\u097F]/,["hi","mr","ne","sa"]],[/[\u0980-\u09FF]/,["bn","as"]],[/[\u0A00-\u0A7F]/,["pa"]],[/[\u0A80-\u0AFF]/,["gu"]],[/[\u0B00-\u0B7F]/,["or"]],[/[\u0B80-\u0BFF]/,["ta"]],[/[\u0C00-\u0C7F]/,["te"]],[/[\u0C80-\u0CFF]/,["kn"]],[/[\u0D00-\u0D7F]/,["ml"]],[/[\u0600-\u06FF]/,["ur","ar"]]];
