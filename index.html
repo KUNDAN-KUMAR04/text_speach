@@ -23,14 +23,14 @@ label b{color:var(--ink)}
 label span{float:right;color:var(--ink);font-variant-numeric:tabular-nums}
 select,input[type=search]{width:100%;padding:9px 10px;font:inherit;background:var(--bg);color:var(--ink);border:1.5px solid var(--line);border-radius:8px}
 input[type=range]{width:100%;accent-color:var(--acc)}
-textarea{width:100%;min-height:340px;resize:vertical;padding:14px;font:inherit;font-size:1.05rem;background:var(--bg);color:var(--ink);border:1.5px solid var(--line);border-radius:10px}
+textarea{width:100%;min-height:260px;resize:vertical;padding:14px;font:inherit;font-size:1.05rem;background:var(--bg);color:var(--ink);border:1.5px solid var(--line);border-radius:10px}
 :focus-visible{outline:3px solid var(--acc);outline-offset:2px}
 .tools{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
 button,.btn{font:inherit;font-size:.9rem;font-weight:600;padding:8px 14px;border-radius:8px;border:1.5px solid var(--line);cursor:pointer;background:var(--panel);color:var(--ink)}
 button:hover,.btn:hover{border-color:var(--acc)}
 button:disabled{opacity:.45;cursor:not-allowed}
 .stats{display:flex;justify-content:space-between;font-size:.85rem;color:var(--mute);margin-top:8px;flex-wrap:wrap;gap:6px}
-#reader{display:none;min-height:340px;max-height:60vh;overflow:auto;font-size:1.1rem;line-height:1.8;padding:6px}
+#reader{display:none;max-height:36vh;overflow:auto;font-size:1.05rem;line-height:1.8;padding:10px;margin-top:6px;background:var(--bg);border:1.5px solid var(--line);border-radius:10px}
 #reader s{text-decoration:none;cursor:pointer;border-radius:4px;padding:1px 0}
 #reader s:hover{background:var(--soft)}
 #reader s.on{background:var(--hl)}
@@ -46,6 +46,9 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .pt{font-size:.8rem;color:var(--mute);margin-top:4px}
 .msg{color:#b3261e;font-size:.85rem;margin-top:8px;min-height:1em}
 .hint{font-size:.78rem;color:var(--mute);margin-top:14px}
+.ck{display:flex;gap:8px;align-items:center;margin:8px 0;font-size:.9rem}
+#reader s.sk{text-decoration:line-through;opacity:.45}
+#dict{min-height:80px;font-size:.9rem}
 @media (max-width:860px){.wrap{grid-template-columns:1fr}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
 </style>
@@ -63,9 +66,10 @@ button:disabled{opacity:.45;cursor:not-allowed}
       <button id="paste">Paste</button>
       <button id="sample">Sample</button>
       <button id="clear">Clear</button>
-      <button id="edit" style="display:none">Edit text</button>
+      <button id="cursor" title="Start reading from the text cursor">Read from cursor</button>
     </div>
     <textarea id="text" placeholder="Type, paste or drop a text file here."></textarea>
+    <div class="hint" id="livehint" style="display:none">Live view: click a sentence to jump to it. You can keep editing the text above; changes are picked up automatically.</div>
     <div id="reader" aria-live="off"></div>
     <div class="stats"><span id="st1">0 words</span><span id="st2">0 characters</span><span id="st3">~0 min</span></div>
     <div class="msg" id="msg" role="status"></div>
@@ -88,6 +92,17 @@ button:disabled{opacity:.45;cursor:not-allowed}
     <input type="range" id="pitch" min="0.5" max="2" step="0.1" value="1">
     <label for="vol"><b>Volume</b><span id="vv">100%</span></label>
     <input type="range" id="vol" min="0" max="1" step="0.05" value="1">
+    <div class="hint"><b>Best Indian voices:</b> open this page in Microsoft Edge (free natural online voices for Hindi, Marathi, Bengali, Tamil, Telugu, Gujarati, Kannada, Malayalam, Urdu and more) or in Chrome on Android with Google Speech Services installed.</div>
+    <h2 style="margin-top:22px">Clean text before reading</h2>
+    <label class="ck"><input type="checkbox" data-opt="url"> Skip links and emails</label>
+    <label class="ck"><input type="checkbox" data-opt="md"> Skip Markdown / HTML symbols (# * _ ` &lt; &gt;)</label>
+    <label class="ck"><input type="checkbox" data-opt="cite"> Skip citations like [1]</label>
+    <label class="ck"><input type="checkbox" data-opt="emoji"> Skip emoji and icons</label>
+    <label class="ck"><input type="checkbox" data-opt="sym"> Skip unknown / decorative characters</label>
+    <label class="ck"><input type="checkbox" data-opt="rep"> Shorten repeated punctuation (!!!!, ----)</label>
+    <label for="dict"><b>Pronunciation fixes</b></label>
+    <textarea id="dict" placeholder="One per line, for example:&#10;SQL=sequel&#10;Dr.=Doctor"></textarea>
+    <div class="hint">Applies live, even while reading. Parts with nothing to say are dimmed and skipped.</div>
     <button id="test" style="margin-top:14px;width:100%">Preview voice</button>
     <p class="hint">Shortcuts: Ctrl+Enter play or pause, Esc stop, Alt+←/→ previous or next sentence. Click any sentence while reading to jump to it.</p>
   </aside>
@@ -152,7 +167,7 @@ function fillVoices(){
   var q=vs.value.toLowerCase(),l=langSel.value,saved=voiceSel.value||lsGet("tts-voice");
   voiceSel.innerHTML="";$("help").textContent="";
   voices.filter(function(v){return(l==="all"||(l.indexOf("p:")===0?pfx(v,l.slice(2)):v.lang===l))&&(!q||(v.name+" "+v.lang).toLowerCase().indexOf(q)>-1);})
-   .forEach(function(v){var o=document.createElement("option");o.value=v.name;o.textContent=v.name+" ("+v.lang+")"+(v.localService?"":" · online");voiceSel.appendChild(o);});
+   .sort(function(a,b){return(/natural|online/i.test(b.name)||!b.localService?1:0)-(/natural|online/i.test(a.name)||!a.localService?1:0);}).forEach(function(v){var o=document.createElement("option");o.value=v.name;o.textContent=v.name+" ("+v.lang+")"+(v.localService?"":" · online");voiceSel.appendChild(o);});
   if(!voiceSel.options.length){
     voiceSel.innerHTML='<option value="">No matching voice</option>';
     if(l.indexOf("p:")===0)$("help").textContent="No voice for this language is installed on this device. Android: Settings › Language & input › Text-to-speech › Google Speech Services › Install voice data. Windows: Settings › Time & language › Speech › Add voices. iPhone/Mac: Settings › Accessibility › Spoken Content › Voices. Chrome on desktop also offers online Google voices for several Indian languages.";
@@ -179,7 +194,7 @@ $("clear").onclick=function(){stopAll();text.value="";lsSet("tts-draft","");stat
 $("sample").onclick=function(){stopAll();text.value="Welcome to Speak. This is a free text to speech tool that runs entirely in your browser. Choose a voice on the right, adjust the speed, and press play. You can also click any sentence while it is reading to jump straight to it.";lsSet("tts-draft",text.value);stats();};
 $("paste").onclick=function(){
   if(!navigator.clipboard||!navigator.clipboard.readText){msg.textContent="Clipboard access isn't available here. Use Ctrl+V in the text box.";return;}
-  navigator.clipboard.readText().then(function(t){text.value=t;lsSet("tts-draft",t);stats();msg.textContent="";}).catch(function(){msg.textContent="Clipboard blocked. Use Ctrl+V in the text box.";});
+  navigator.clipboard.readText().then(function(t){text.value=t;lsSet("tts-draft",t);stats();msg.textContent="";if(state!=="idle")syncLive();}).catch(function(){msg.textContent="Clipboard blocked. Use Ctrl+V in the text box.";});
 };
 function loadFile(f){
   if(!f)return;
@@ -197,6 +212,53 @@ function split(t){
     if(s.trim())out.push(s);
   });
   return out;
+}
+
+/* ---------- cleaning, pronunciation, live editing ---------- */
+var OPT={url:1,md:1,cite:1,emoji:1,sym:1,rep:1};
+try{var so=JSON.parse(lsGet("tts-opt")||"null");if(so)OPT=so;}catch(e){}
+Array.prototype.forEach.call(document.querySelectorAll("[data-opt]"),function(el){
+  el.checked=!!OPT[el.dataset.opt];
+  el.onchange=function(){OPT[el.dataset.opt]=el.checked?1:0;lsSet("tts-opt",JSON.stringify(OPT));if(state!=="idle")renderLive();};
+});
+var dict=[];
+function parseDict(){dict=[];($("dict").value||"").split("\n").forEach(function(l){var i=l.indexOf("=");if(i<1)return;var a=l.slice(0,i).trim(),b=l.slice(i+1).trim();if(a)dict.push([new RegExp(a.replace(/[.*+?^${}()|[\]\\]/g,"\\$&"),"gi"),b]);});}
+$("dict").value=lsGet("tts-dict")||"";parseDict();
+$("dict").oninput=function(){lsSet("tts-dict",$("dict").value);parseDict();if(state!=="idle")renderLive();};
+function clean(s){
+  if(OPT.url)s=s.replace(/https?:\/\/\S+|www\.\S+|\b[\w.-]+@[\w-]+\.[\w.]+/gi," ");
+  if(OPT.md)s=s.replace(/<[^>]+>/g," ").replace(/^\s*(#{1,6}|[-*+•>]|\d+\.)\s+/,"").replace(/[*_`~|^\\#<>]+/g," ");
+  if(OPT.cite)s=s.replace(/\[\s*\d+(?:\s*[,–-]\s*\d+)*\s*\]/g," ");
+  if(OPT.emoji)s=s.replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}]/gu," ");
+  if(OPT.sym)s=s.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFD\uE000-\uF8FF\u200B\u2060\uFEFF\u00AD\u2022\u25A0-\u25FF\u2190-\u21FF\u2500-\u257F]/g," ");
+  if(OPT.rep)s=s.replace(/([.!?,;:=\-_~*#+])\1+/g,"$1");
+  dict.forEach(function(d){s=s.replace(d[0],d[1]);});
+  s=s.replace(/\s+/g," ").trim();
+  return /[\p{L}\p{N}]/u.test(s)?s:"";
+}
+function rebuildCum(){cum=[0];list.forEach(function(x){cum.push(cum[cum.length-1]+x.length)});}
+function renderLive(){
+  var a=Math.max(0,idx-2),b=Math.min(list.length,idx+10),h="";
+  for(var i=a;i<b;i++)h+='<s data-i="'+i+'" class="'+(i===idx?"on":"")+(clean(list[i])?"":" sk")+'">'+esc(list[i])+'</s>';
+  reader.innerHTML=(a>0?"… ":"")+h+(b<list.length?" …":"");
+  var on=reader.querySelector("s.on");if(on)on.scrollIntoView({block:"nearest"});
+}
+var liveT;
+text.addEventListener("input",function(){if(state==="idle")return;clearTimeout(liveT);liveT=setTimeout(syncLive,500);});
+function syncLive(){
+  if(state==="idle")return;
+  var nl=split(text.value),cur=list[idx],ni=-1,best=1e9,was=state;
+  nl.forEach(function(x,i){if(x===cur&&Math.abs(i-idx)<best){best=Math.abs(i-idx);ni=i;}});
+  list=nl;rebuildCum();
+  if(!list.length){stopAll();return;}
+  if(ni>-1){idx=ni;renderLive();progress();return;}
+  speakFrom(Math.min(idx,list.length-1));
+  if(was==="paused"){synth.pause();state="paused";setUI();progress();}
+}
+function fromCursor(){
+  var t=text.value;if(!t.trim()){msg.textContent="Add some text first.";text.focus();return;}
+  msg.textContent="";list=split(t);rebuildCum();warned={};
+  speakFrom(Math.max(0,split(t.slice(0,text.selectionStart||0)).length-1));
 }
 
 /* ---------- playback ---------- */
@@ -219,21 +281,16 @@ function setUI(){
   stopB.disabled=prevB.disabled=nextB.disabled=!on;
   playB.innerHTML=state==="playing"?"&#10074;&#10074;":"&#9654;";
   playB.setAttribute("aria-label",state==="playing"?"Pause":"Play");
-  text.style.display=on?"none":"block";reader.style.display=on?"block":"none";editB.style.display=on?"inline-block":"none";
+  reader.style.display=on?"block":"none";$("livehint").style.display=on?"block":"none";
 }
-function buildReader(){
-  reader.innerHTML=list.map(function(s,i){return'<s data-i="'+i+'">'+esc(s)+'</s>';}).join("");
-}
+function buildReader(){}
 reader.addEventListener("click",function(e){var el=e.target.closest("s");if(el)speakFrom(Number(el.dataset.i));});
 function progress(){
   var pct=list.length?(idx/list.length)*100:0;$("bar").style.width=pct+"%";
   var rem=(cum[list.length]-cum[idx])/(15*Number(rate.value)),m=Math.ceil(rem/60);
   $("pt").textContent=state==="idle"?"Ready":("Sentence "+(idx+1)+" of "+list.length+" · about "+(rem<60?Math.ceil(rem)+" sec":m+" min")+" left"+(state==="paused"?" · paused":""));
 }
-function mark(i){
-  var prev=reader.querySelector("s.on");if(prev){prev.classList.remove("on");prev.textContent=list[Number(prev.dataset.i)];}
-  var el=reader.querySelector('s[data-i="'+i+'"]');if(el){el.classList.add("on");el.scrollIntoView({block:"center",behavior:"smooth"});}
-}
+function mark(i){renderLive();}
 function speakFrom(i){
   synth.cancel();var my=++token;
   if(!list.length)return;
@@ -241,12 +298,12 @@ function speakFrom(i){
   (function run(){
     if(my!==token)return;
     if(idx>=list.length){stopAll();return;}
-    var s=list[idx],u=new SpeechSynthesisUtterance(s),base=idx,v=pick(s);
+    while(idx<list.length&&!clean(list[idx]))idx++;if(idx>=list.length){stopAll();return;}var s=list[idx],cs=clean(s),u=new SpeechSynthesisUtterance(cs),base=idx,v=pick(s);
     if(v){u.voice=v;u.lang=v.lang;}
     u.rate=Number(rate.value);u.pitch=Number(pitch.value);u.volume=Number(vol.value);
     mark(idx);progress();var cur=reader.querySelector('s[data-i="'+base+'"]');
     u.onboundary=function(e){
-      if(my!==token||(e.name&&e.name!=="word"))return;
+      if(my!==token||cs!==s||(e.name&&e.name!=="word"))return;
       var el=cur;if(!el)return;
       var a=e.charIndex,b=s.indexOf(" ",a);if(b<0)b=s.length;
       el.innerHTML=esc(s.slice(0,a))+"<mark>"+esc(s.slice(a,b))+"</mark>"+esc(s.slice(b));
@@ -268,7 +325,7 @@ function toggle(){
 }
 playB.onclick=toggle;stopB.onclick=stopAll;
 prevB.onclick=function(){speakFrom(idx-1);};nextB.onclick=function(){speakFrom(idx+1);};
-editB.onclick=stopAll;
+$("cursor").onclick=fromCursor;
 $("test").onclick=function(){
   stopAll();var v=voices.filter(function(x){return x.name===voiceSel.value})[0];
   var u=new SpeechSynthesisUtterance("This is how I sound at the current settings.");
